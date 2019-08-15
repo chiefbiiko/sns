@@ -2,6 +2,11 @@ import { encode } from "https://denopkg.com/chiefbiiko/std-encoding/mod.ts";
 import { HeadersConfig, createHeaders, kdf } from "./client/mod.ts";
 import { Doc, camelCase, date } from "./util.ts";
 
+/** SNS client. */
+export interface SNSClient {
+  [key: string]: (params: Doc) => Promise<Doc | AsyncIterableIterator<Doc>>;
+}
+
 /** Client configuration. */
 export interface ClientConfig {
   accessKeyId: string; // AKIAIOSFODNN7EXAMPLE
@@ -116,13 +121,17 @@ function baseFetch(conf: Doc, op: string, params: Doc): Promise<Doc> {
         );
       }
 
-      return response.json();
+      const body: Doc = response.json();
+      
+      // TODO: if body has NextToken && iteratePages return an async iterator
+
+      return body; 
     }
   );
 }
 
-/** Creates a DynamoDB client. */
-export function createClient(conf: ClientConfig): DynamoDBClient {
+/** Creates a SNS client. */
+export function createClient(conf: ClientConfig): SNSClient {
   if (!conf.accessKeyId || !conf.secretAccessKey || !conf.region) {
     throw new TypeError(
       "client config must include accessKeyId, secretAccessKey and region"
@@ -132,7 +141,7 @@ export function createClient(conf: ClientConfig): DynamoDBClient {
   const host: string =
     conf.region === "local"
       ? "localhost"
-      : `dynamodb.${conf.region}.amazonaws.com`;
+      : `sns.${conf.region}.amazonaws.com`;
 
   const endpoint: string = `http${
     conf.region === "local" ? "" : "s"
@@ -146,11 +155,11 @@ export function createClient(conf: ClientConfig): DynamoDBClient {
     endpoint
   };
 
-  const ddbc: DynamoDBClient = {} as DynamoDBClient;
+  const snsc: SNSClient = {} as SNSClient;
 
   for (const op of OPS) {
-    ddbc[camelCase(op)] = baseOp.bind(null, _conf, op);
+    snsc[camelCase(op)] = baseFetch.bind(null, _conf, op);
   }
 
-  return ddbc;
+  return snsc;
 }

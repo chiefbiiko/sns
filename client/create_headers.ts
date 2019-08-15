@@ -12,7 +12,7 @@ const POST_CONTENT_TYPE: string = "application/x-amz-json-1.0";
 
 /** Required configuration for assembling headers. */
 export interface HeadersConfig extends ClientConfig {
-  host: string; // dynamodb.us-west-2.amazonaws.com
+  host: string; // sns.us-west-2.amazonaws.com
   method: string; // POST
   cache: Doc; // internal cache for expensive-2-make signing key (& credScope)
   date?: Date; // allows reusing a date for 5min (max signature timestamp diff)
@@ -24,7 +24,8 @@ export function createHeaders(
   payload: Uint8Array,
   conf: HeadersConfig
 ): Headers {
-  const amzTarget: string = `DynamoDB_20120810.${op}`;
+  // if not SNS maybe [Amazon]SimpleNotificationService?
+  const amzTarget: string = `SNS_20100331.${op}`;
 
   const amzDate: string = date.format(conf.date || new Date(), "amz");
 
