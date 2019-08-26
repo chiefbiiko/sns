@@ -8,7 +8,7 @@ import { ClientConfig } from "./../mod.ts";
 const ALGORITHM: string = "AWS4-HMAC-SHA256";
 
 /** Content type header value for POST requests. */
-const POST_CONTENT_TYPE: string = "application/x-amz-json-1.0";
+const X_WWW_FORM_URLENCODED: string = "application/x-www-form-urlencoded; charset=utf-8";
 
 /** Required configuration for assembling headers. */
 export interface HeadersConfig extends ClientConfig {
@@ -25,17 +25,17 @@ export function createHeaders(
   conf: HeadersConfig
 ): Headers {
   // if not SNS maybe [Amazon]SimpleNotificationService?
-  const amzTarget: string = `SNS_20100331.${op}`;
+  // const amzTarget: string = `SNS_20100331.${op}`;
 
   const amzDate: string = date.format(conf.date || new Date(), "amz");
 
   const canonicalUri: string = conf.canonicalUri || "/";
 
-  const canonicalHeaders: string = `content-type:${POST_CONTENT_TYPE}\nhost:${
+  const canonicalHeaders: string = `content-type:${X_WWW_FORM_URLENCODED}\nhost:${
     conf.host
-  }\nx-amz-date:${amzDate}\nx-amz-target:${amzTarget}\n`;
+  }\nx-amz-date:${amzDate}\n`; // x-amz-target:${amzTarget}\n`;
 
-  const signedHeaders: string = "content-type;host;x-amz-date;x-amz-target";
+  const signedHeaders: string = "content-type;host;x-amz-date"; // ;x-amz-target";
 
   const payloadHash: string = sha256(payload, null, "hex") as string;
 
@@ -69,9 +69,11 @@ export function createHeaders(
   }, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
   return new Headers({
-    "Content-Type": POST_CONTENT_TYPE,
+    "Content-Type": X_WWW_FORM_URLENCODED,
+    "Content-Length": String(payload.byteLength),
     "X-Amz-Date": amzDate,
-    "X-Amz-Target": amzTarget,
-    Authorization: authorizationHeader
+    // "X-Amz-Target": amzTarget,
+    Authorization: authorizationHeader,
+    // "User-Agent": `deno ${Deno.version.deno}`
   });
 }

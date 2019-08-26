@@ -4,7 +4,7 @@ import { Doc, camelCase, date } from "./util.ts";
 
 /** SNS client. */
 export interface SNSClient {
-  [key: string]: (params: Doc) => Promise<Doc | AsyncIterableIterator<Doc>>;
+  [key: string]: (params?: Doc) => Promise<Doc | AsyncIterableIterator<Doc>>;
 }
 
 /** Client configuration. */
@@ -104,30 +104,73 @@ function createCache(conf: Doc): Doc {
 }
 
 /** Base fetch. */
-function baseFetch(conf: Doc, op: string, params: Doc): Promise<Doc> {
-  const payload: Uint8Array = encode(JSON.stringify(params), "utf8");
+function baseFetch(conf: Doc, op: string, params: Doc = {}, { iteratePages = true }: OpOptions = {}): Promise<Doc> {
+  // params = { Action: op, Version: "2010-03-31", ...params };
 
-  const headers: Headers = createHeaders(op, payload, conf as HeadersConfig);
+  console.error(">>>>>>>>>>>>>>>>>>>>>>>>> PARAMS", JSON.stringify(params, null, 2))
 
-  return fetch(conf.endpoint, {
+  // const body: Uint8Array = encode(JSON.stringify(params), "utf8");
+
+  const headers: Headers = createHeaders(op, new Uint8Array(0),/*body,*/ conf as HeadersConfig);
+
+  for (const header of headers.entries()) {
+    console.error(">>>>>>>>>>>>>>>>>>>>> REQUEST HEADER", header.join(": "));
+  }
+
+  // return fetch(conf.endpoint, {
+  return fetch(`${conf.endpoint}/?Action=${op}&Version=2010-03-31`, {
     method: conf.method,
     headers,
-    body: payload
+    // body
   }).then(
     (response: Response): Doc => {
       if (!response.ok) {
+        for (const header of response.headers.entries()) {
+          console.error(">>>>>>>>>>>>>>>>>>>>> RESPONSE HEADER", header.join(": "));
+        }
+
         throw new Error(
           `http query request failed: ${response.status} ${response.statusText}`
         );
       }
 
-      const body: Doc = response.json();
-      
-      // TODO: if body has NextToken && iteratePages return an async iterator
-
-      return body; 
+      return response.json();
     }
-  );
+  ).then(result => {
+    if (result.NextToken && iteratePages) {
+      let nextToken: any = result.NextToken;
+      let first: boolean = true;
+
+      return {
+        [Symbol.asyncIterator](): AsyncIterableIterator<Doc> {
+          return this;
+        },
+        async next(): Promise<IteratorResult<Doc>> {
+          if (!nextToken) {
+            return { value: {}, done: true };
+          }
+
+          if (first) {
+            first = false;
+
+            nextToken = result.NextToken;
+
+            return { value: result, done: false };
+          } else {
+            params.NextToken = nextToken;
+          }
+
+          result = await baseFetch(conf, op, params);
+
+          nextToken = result.NextToken;
+
+          return { value: result, done: false };
+        }
+      };
+    }
+
+    return result;
+  });
 }
 
 /** Creates a SNS client. */
@@ -145,7 +188,7 @@ export function createClient(conf: ClientConfig): SNSClient {
 
   const endpoint: string = `http${
     conf.region === "local" ? "" : "s"
-  }://${host}:${conf.port || 8000}/`;
+  }://${host}:${conf.port || 4575}/`;
 
   const _conf: Doc = {
     ...conf,
